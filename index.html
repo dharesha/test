@@ -1,0 +1,235 @@
+<h2 class="sr-only">Timer ricarica power bank fino all'80%</h2>
+<div style="max-width: 420px; margin: 2rem auto; padding: 0 1rem;">
+
+  <div style="background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); padding: 1.5rem;">
+    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 1.5rem;">
+      <i class="ti ti-bolt" style="font-size: 22px; color: var(--color-text-info);" aria-hidden="true"></i>
+      <span style="font-size: 16px; font-weight: 500; color: var(--color-text-primary);">Timer ricarica fino all'80%</span>
+    </div>
+
+    <label style="font-size: 13px; color: var(--color-text-secondary);">Livello attuale (%)</label>
+    <div style="display: flex; align-items: center; gap: 10px; margin: 8px 0 1.25rem;">
+      <input type="range" id="slider" min="0" max="79" value="40" style="flex:1;" />
+      <input type="number" id="numInput" min="0" max="79" value="40" style="width: 60px; text-align: center;" />
+    </div>
+
+    <div style="margin-bottom: 1.25rem;">
+      <div style="display: flex; justify-content: space-between; font-size: 12px; color: var(--color-text-secondary); margin-bottom: 4px;">
+        <span id="fromLabel">40%</span>
+        <span>80%</span>
+      </div>
+      <div style="height: 10px; border-radius: 6px; background: var(--color-background-secondary); overflow: hidden; border: 0.5px solid var(--color-border-tertiary);">
+        <div id="progressBar" style="height: 100%; width: 50%; background: var(--color-background-info); border-radius: 6px; transition: width 0.2s;"></div>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 1.25rem;">
+      <div style="background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 12px; text-align: center;">
+        <div style="font-size: 12px; color: var(--color-text-secondary); margin-bottom: 4px;">da caricare</div>
+        <div id="pctCard" style="font-size: 22px; font-weight: 500; color: var(--color-text-primary);">40%</div>
+      </div>
+      <div style="background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 12px; text-align: center;">
+        <div style="font-size: 12px; color: var(--color-text-secondary); margin-bottom: 4px;">tempo stimato</div>
+        <div id="timeCard" style="font-size: 22px; font-weight: 500; color: var(--color-text-primary);">34 min</div>
+      </div>
+    </div>
+
+    <div id="countdownBox" style="display: none; background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 14px; text-align: center; margin-bottom: 1.25rem;">
+      <div style="font-size: 12px; color: var(--color-text-secondary); margin-bottom: 4px;" id="cdLabel">rimanenti</div>
+      <div id="cdDisplay" style="font-size: 32px; font-weight: 500; color: var(--color-text-primary); font-variant-numeric: tabular-nums;">--:--</div>
+      <div id="ringWrap" style="margin-top: 10px; height: 6px; border-radius: 4px; background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); overflow: hidden;">
+        <div id="ringBar" style="height: 100%; width: 100%; background: var(--color-background-info); border-radius: 4px; transition: width 1s linear;"></div>
+      </div>
+    </div>
+
+    <div style="display: flex; gap: 10px;">
+      <button id="startBtn" onclick="startTimer()" style="flex:1;">
+        <i class="ti ti-player-play" aria-hidden="true"></i> Avvia
+      </button>
+      <button id="stopBtn" onclick="stopTimer()" style="flex:1; display:none;">
+        <i class="ti ti-player-pause" aria-hidden="true"></i> Pausa
+      </button>
+      <button id="resetBtn" onclick="resetTimer()" style="flex:1; display:none;">
+        <i class="ti ti-refresh" aria-hidden="true"></i> Reset
+      </button>
+      <button id="stopAudioBtn" onclick="stopAlarm()" style="flex:1; display:none; background: var(--color-background-error, #fee2e2); color: var(--color-text-error, #dc2626); border-color: transparent;">
+        <i class="ti ti-bell-off" aria-hidden="true"></i> Stop Suono
+      </button>
+    </div>
+
+    <div id="doneMsg" style="display:none; text-align:center; margin-top:1rem; padding: 10px; border-radius: var(--border-radius-md); background: var(--color-background-success); color: var(--color-text-success); font-size: 14px; font-weight: 500;">
+      <i class="ti ti-circle-check" aria-hidden="true"></i> Ricarica all'80% completata!
+    </div>
+  </div>
+</div>
+
+<script>
+let timerInterval = null;
+let secondsRemaining = 0;
+let totalSeconds = 0;
+let startLevel = 40;
+let audioCtx = null;
+let alarmInterval = null;
+
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+
+function playDone() {
+  try {
+    const ctx = getAudioCtx();
+    const notes = [523.25, 659.25, 783.99, 1046.5];
+    notes.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.frequency.value = freq;
+      osc.type = 'sine';
+      const t = ctx.currentTime + i * 0.18;
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(0.25, t + 0.04);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+      osc.start(t); osc.stop(t + 0.4);
+    });
+  } catch(e) {}
+}
+
+function startAlarmLoop() {
+  playDone();
+  alarmInterval = setInterval(playDone, 1200); 
+}
+
+function stopAlarm() {
+  if (alarmInterval) {
+    clearInterval(alarmInterval);
+    alarmInterval = null;
+  }
+  document.getElementById('stopAudioBtn').style.display = 'none';
+}
+
+function calcSeconds(level) {
+  const pct = 80 - level;
+  return Math.floor(pct * 0.84 * 60);
+}
+
+function formatTime(s) {
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  return `${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+}
+
+function updatePreview() {
+  const v = parseInt(document.getElementById('slider').value);
+  const pct = 80 - v;
+  const mins = Math.round(pct * 0.84);
+  document.getElementById('fromLabel').textContent = v + '%';
+  document.getElementById('pctCard').textContent = pct + '%';
+  document.getElementById('timeCard').textContent = mins + ' min';
+  document.getElementById('progressBar').style.width = (v / 80 * 100) + '%';
+}
+
+document.getElementById('slider').addEventListener('input', function() {
+  document.getElementById('numInput').value = this.value;
+  updatePreview();
+});
+
+document.getElementById('numInput').addEventListener('input', function() {
+  let v = parseInt(this.value);
+  if (isNaN(v)) return;
+  v = Math.max(0, Math.min(79, v));
+  this.value = v;
+  document.getElementById('slider').value = v;
+  updatePreview();
+});
+
+function startTimer() {
+  const level = parseInt(document.getElementById('slider').value);
+  if (isNaN(level) || level < 0 || level >= 80) return;
+
+  if (secondsRemaining === 0) {
+    startLevel = level;
+    totalSeconds = calcSeconds(level);
+    secondsRemaining = totalSeconds;
+  }
+
+  document.getElementById('countdownBox').style.display = 'block';
+  document.getElementById('startBtn').style.display = 'none';
+  document.getElementById('stopBtn').style.display = '';
+  document.getElementById('resetBtn').style.display = '';
+  document.getElementById('stopAudioBtn').style.display = 'none';
+  document.getElementById('doneMsg').style.display = 'none';
+  document.getElementById('cdLabel').textContent = 'rimanenti';
+
+  timerInterval = setInterval(tick, 1000);
+  tick();
+}
+
+function tick() {
+  if (secondsRemaining <= 0) {
+    clearInterval(timerInterval);
+    document.getElementById('cdDisplay').textContent = '00:00';
+    document.getElementById('ringBar').style.width = '0%';
+    document.getElementById('cdLabel').textContent = 'completato';
+    document.getElementById('doneMsg').style.display = 'block';
+    
+    document.getElementById('stopBtn').style.display = 'none';
+    document.getElementById('stopAudioBtn').style.display = ''; 
+    
+    startAlarmLoop(); 
+    return;
+  }
+  document.getElementById('cdDisplay').textContent = formatTime(secondsRemaining);
+  const pct = (secondsRemaining / totalSeconds) * 100;
+  document.getElementById('ringBar').style.width = pct + '%';
+  secondsRemaining--;
+}
+
+function stopTimer() {
+  clearInterval(timerInterval);
+  timerInterval = null;
+  document.getElementById('stopBtn').style.display = 'none';
+  document.getElementById('startBtn').style.display = '';
+  document.getElementById('startBtn').innerHTML = '<i class="ti ti-player-play" aria-hidden="true"></i> Riprendi';
+}
+
+function resetTimer() {
+  clearInterval(timerInterval);
+  timerInterval = null;
+  stopAlarm(); 
+  secondsRemaining = 0;
+  totalSeconds = 0;
+  document.getElementById('countdownBox').style.display = 'none';
+  document.getElementById('doneMsg').style.display = 'none';
+  document.getElementById('startBtn').style.display = '';
+  document.getElementById('startBtn').innerHTML = '<i class="ti ti-player-play" aria-hidden="true"></i> Avvia';
+  document.getElementById('stopBtn').style.display = 'none';
+  document.getElementById('resetBtn').style.display = 'none';
+  document.getElementById('cdDisplay').textContent = '--:--';
+  document.getElementById('ringBar').style.width = '100%';
+}
+
+document.addEventListener('visibilitychange', function() {
+  if (document.hidden) {
+    if (timerInterval) {
+      clearInterval(timerInterval);
+      window._hiddenAt = Date.now();
+      window._hiddenSeconds = secondsRemaining;
+    }
+  } else {
+    if (window._hiddenAt && window._hiddenSeconds !== undefined) {
+      const elapsed = Math.floor((Date.now() - window._hiddenAt) / 1000);
+      secondsRemaining = Math.max(0, window._hiddenSeconds - elapsed);
+      window._hiddenAt = null;
+      if (secondsRemaining > 0) {
+        timerInterval = setInterval(tick, 1000);
+        tick();
+      } else {
+        tick();
+      }
+    }
+  }
+});
+
+updatePreview();
+</script>
